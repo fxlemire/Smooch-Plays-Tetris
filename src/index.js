@@ -23,8 +23,10 @@ const users = [];
 let canRestart = false;
 
 let voteKeys = [];
+let authorIds = new Set();
 
 function handleKeys(message) {
+  authorIds.add(message.authorId);
   const channel = message.source.type;
   const sentKeys = (message.payload || message.text)
     .toLowerCase()
@@ -42,10 +44,13 @@ function handleKeys(message) {
     });
   }
 
-  console.log(sentKeys);
+  // console.log(sentKeys);
 }
 
-setInterval(() => {
+const DEFAULT_INTERVAL = 50;
+let currentInterval = DEFAULT_INTERVAL;
+
+const voteFunc = () => {
   const votes = {
     rotation: {
       left: 0,
@@ -60,31 +65,31 @@ setInterval(() => {
 
   const keysToSend = [];
 
-  voteKeys.forEach((currentVoteKeys) => {
-    const keys = [...new Set([...currentVoteKeys]).values()];
-
-    keys.forEach((key) => {
-      switch (key) {
-        case 'z':
-          votes.rotation.left += 1;
-          break;
-        case 'x':
-          votes.rotation.right += 1;
-          break;
-        case 'left':
-          votes.vertical.left += 1;
-          break;
-        case 'right':
-          votes.vertical.right += 1;
-          break;
-        case 'down':
-          votes.down += 1;
-          break;
-        default:
-          break;
-      }
-    });
+  voteKeys.forEach((key) => {
+    switch (key) {
+      case 'z':
+        votes.rotation.left += 1;
+        break;
+      case 'x':
+        votes.rotation.right += 1;
+        break;
+      case 'left':
+        votes.vertical.left += 1;
+        break;
+      case 'right':
+        votes.vertical.right += 1;
+        break;
+      case 'down':
+        votes.down += 1;
+        break;
+      default:
+        break;
+    }
   });
+
+  if (voteKeys.length > 0) {
+    console.log('votes', votes);
+  }
 
   if (votes.rotation.left + votes.rotation.right > 0) {
     if (votes.rotation.left > votes.rotation.right) {
@@ -106,9 +111,21 @@ setInterval(() => {
     keysToSend.push('down');
   }
 
-  keysToSend.map(sendKeys).map(console.log);
+  if (keysToSend.length > 0) {
+    console.log('sending keys', keysToSend);
+  }
+
+  keysToSend.map(sendKeys);
+
+  currentInterval = DEFAULT_INTERVAL * (authorIds.size || 1);
+  currentInterval = currentInterval > 1000 ? 1000 : currentInterval;
+
   voteKeys = [];
-}, 200);
+  authorIds = new Set();
+  setTimeout(voteFunc, currentInterval);
+};
+
+setTimeout(voteFunc, currentInterval);
 
 app.post('/messages', async (req, res) => {
   if (!(req.body.messages && req.body.appUser)) {
