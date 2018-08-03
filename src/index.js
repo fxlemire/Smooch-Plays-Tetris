@@ -22,14 +22,17 @@ app.set('port', process.env.PORT || 3000);
 const users = [];
 let canRestart = false;
 
+let voteKeys = [];
+
 function handleKeys(message) {
   const channel = message.source.type;
   const sentKeys = (message.payload || message.text)
     .toLowerCase()
     .split('')
     .map(c => VALID_CHARACTERS[c] && VALID_CHARACTERS[c].key)
-    .filter(v => v)
-    .map(sendKeys);
+    .filter(v => v);
+
+  voteKeys.push(...sentKeys);
 
   if (sentKeys.length) {
     io.emit('command', {
@@ -41,6 +44,71 @@ function handleKeys(message) {
 
   console.log(sentKeys);
 }
+
+setInterval(() => {
+  const votes = {
+    rotation: {
+      left: 0,
+      right: 0,
+    },
+    vertical: {
+      left: 0,
+      right: 0,
+    },
+    down: 0,
+  };
+
+  const keysToSend = [];
+
+  voteKeys.forEach((currentVoteKeys) => {
+    const keys = [...new Set([...currentVoteKeys]).values()];
+
+    keys.forEach((key) => {
+      switch (key) {
+        case 'z':
+          votes.rotation.left += 1;
+          break;
+        case 'x':
+          votes.rotation.right += 1;
+          break;
+        case 'left':
+          votes.vertical.left += 1;
+          break;
+        case 'right':
+          votes.vertical.right += 1;
+          break;
+        case 'down':
+          votes.down += 1;
+          break;
+        default:
+          break;
+      }
+    });
+  });
+
+  if (votes.rotation.left + votes.rotation.right > 0) {
+    if (votes.rotation.left > votes.rotation.right) {
+      keysToSend.push('z');
+    } else {
+      keysToSend.push('x');
+    }
+  }
+
+  if (votes.vertical.left + votes.vertical.right > 0) {
+    if (votes.vertical.left > votes.vertical.right) {
+      keysToSend.push('left');
+    } else {
+      keysToSend.push('right');
+    }
+  }
+
+  if (votes.down > 0) {
+    keysToSend.push('down');
+  }
+
+  keysToSend.map(sendKeys).map(console.log);
+  voteKeys = [];
+}, 200);
 
 app.post('/messages', async (req, res) => {
   if (!(req.body.messages && req.body.appUser)) {
